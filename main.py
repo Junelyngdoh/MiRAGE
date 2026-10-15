@@ -848,7 +848,7 @@ def main():
                         help="Select a dataset preset to auto-configure paths and specific data loading quirks.")
 
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--num_runs", type=int, default=3, help="Number of multi-seed runs to execute")
+    parser.add_argument("--num_runs", type=int, default=1, help="Number of multi-seed runs to execute")
     parser.add_argument("--data_root", type=str, default="")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints_unified")
     parser.add_argument("--num_epochs", type=int, default=80)
