@@ -19,15 +19,22 @@ Official implementation of “Parameter-Efficient Remote Sensing Image Scene Cla
 ├── data/              # Benchmark dataset directories (AID, UCMerced, NWPU-RESISC45)
 ├── models/            # Directory to store trained checkpoints (download link below)
 ├── splits/            # Text files listing image names for each train/test partition
-├── main.py            # Model training and multi-seed evaluation script
-├── test.py            # Standalone inference and checkpoint evaluation script
-├── requirements.txt   # Pinned environment dependencies
+├── main.py            # Model training and evaluation script
+├── requirements.txt   # Environment dependencies
 └── README.md
 ```
 
 ---
 
 ## 🛠️ Environment Setup
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Junelyngdoh/MiRAGE.git
+cd MiRAGE
+```
+
+### 2. Create the Environment
 
 ### Option 1: Primary Environment (NWPU, UCMerced, AID $T_r = 0.5$)
 Tested on **Python 3.9**:
@@ -92,7 +99,7 @@ python main.py --preset ucmerced --train_ratio 0.5 --batch_size 16 --num_runs 3 
 ### 2. Aerial Image Dataset (AID)
 ```bash
 # 50% Train, 50% Test (Tr = 0.5)
-python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 0
+python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 42
 
 # 20% Train, 80% Test (Tr = 0.2)
 python main.py --preset aid --train_ratio 0.2 --batch_size 16 --num_runs 3 --seed 0
@@ -119,13 +126,10 @@ Pretrained weights are available for download:
 
 Place the downloaded `.pth` checkpoint files into the `models/` directory.
 
-To evaluate a saved model checkpoint on the test partition using hard routing ($t_h$):
+For instance, to evaluate a saved model checkpoint on the AID test partition with (Tr=0.1) using hard routing ($t_h$):
 ```bash
-python main.py \
-  --preset aid \
-  --eval \
-  --checkpoint_path ./models/final_model_aid_seed_0.pth \
-  --hard-routing-eval
+python main.py --preset aid --eval --test_size 0.5 --checkpoint_path ./models/mirage_aid_tr0.5_seed0.pth --hard-routing-eval
+
 ```
 
 ---
