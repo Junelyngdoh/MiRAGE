@@ -51,7 +51,8 @@ If you are reproducing the AID $T_r = 0.2$ experiments under its original setup 
 ```bash
 conda create -n mirage_aid python=3.10 -y
 conda activate mirage_aid
-pip install -r requirements_aid02.txt
+# Uncomment the alternative block in requirements.txt, then run:
+pip install -r requirements.txt
 ```
 
 ---
