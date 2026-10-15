@@ -6,7 +6,7 @@ Official implementation of “Parameter-Efficient Remote Sensing Image Scene Cla
 **MiRAGE** (*Mixture of Recursive Attention for Geographic Encoding*) is a unified parameter-efficient framework for Remote Sensing (RS) scene classification:
 - **Parameter-Efficient Fine-Tuning (PEFT):** Adapts a pretrained `CLIP ViT-L/14@336` vision backbone using Low-Rank Adaptation (LoRA).
 - **Dual-Head Architecture:** Employs a Global Recursive Head (GRH) to capture global context from the class token and a Spatial Recursive Head (SRH) utilizing multi-head cross-attention over patch tokens to capture local spatial textures. 
-- **Mixture-of-Recursions (MoR):** A shared neural router dynamicallly determines an input-image-dependent recursion depth ($t \in [1, 4]$), to adapt the computation graph.
+- **Mixture-of-Recursions (MoR):** A shared neural router dynamically determines an input-image-dependent recursion depth ($t \in [1, 4]$), to adapt the computation graph.
 - **Cross-Modal Semantic Initialization (CMSI):** Transfers semantic priors by initializing head classifiers with class- and branch-specific CLIP text embeddings.
 - **Inter-Classifier Consistency Loss:** Employs a symmetric Kullback-Leibler (KL) divergence loss between GRH and SRH logits to encourage mutual agreement while preserving their complementary representations.
 
@@ -51,8 +51,7 @@ If you are reproducing the AID $T_r = 0.2$ experiments under its original setup 
 ```bash
 conda create -n mirage_aid python=3.10 -y
 conda activate mirage_aid
-# Uncomment the alternative block in requirements.txt, then run:
-pip install -r requirements.txt
+pip install -r requirements_aid02.txt
 ```
 
 ---
@@ -79,7 +78,7 @@ data/
 ```
 
 > **Note on `splits/`:**  
-> The `splits/` folder contains reference `.txt` files listing the exact image filenames used for each train/test split. By default, `main.py` generates reproducible stratified splits using fixed random seeds (`seed=0, 2, 4`), but the text files are provided for external reference or if you want to use the same sets of images.
+> The `splits/` folder contains reference `.txt` files listing the exact image filenames used for each train/test split. By default, `main.py` generates reproducible stratified splits using random seeds (`0, 2, 4` for most benchmarks; `42, 44, 46` for AID $T_r = 0.2$). The text files are provided for reference or if you want to use the same sets of images.
 
 ---
 
@@ -99,10 +98,10 @@ python main.py --preset ucmerced --train_ratio 0.5 --batch_size 16 --num_runs 3 
 ### 2. Aerial Image Dataset (AID)
 ```bash
 # 50% Train, 50% Test (T_r = 0.5)
-python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 42
+python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 0
 
 # 20% Train, 80% Test (T_r = 0.2)
-python main.py --preset aid --train_ratio 0.2 --batch_size 16 --num_runs 3 --seed 0
+python main.py --preset aid --train_ratio 0.2 --batch_size 16 --num_runs 3 --seed 42
 ```
 
 ### 3. NWPU-RESISC45 (NWPU)
@@ -126,7 +125,7 @@ Pretrained weights are available for download:
 
 Place the downloaded `.pth` checkpoint files into the `models/` directory.
 
-For instance, to evaluate a saved model checkpoint on the AID test partition with (Tr=0.1) using hard routing ($t_h$):
+For instance, to evaluate a saved model checkpoint on the AID test partition with (Tr=0.5) using hard routing ($t_h$):
 ```bash
 python main.py --preset aid --eval --test_size 0.5 --checkpoint_path ./models/mirage_aid_tr0.5_seed0.pth --hard-routing-eval
 
