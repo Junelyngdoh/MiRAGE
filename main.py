@@ -72,6 +72,24 @@ def worker_seed_set(worker_id):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+def get_rng_state(train_loader):
+    return {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch_cpu": torch.get_rng_state(),
+        "torch_cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        "loader_gen": train_loader.generator.get_state(),
+    }
+
+def set_rng_state(state, train_loader):
+    random.setstate(state["python"])
+    np.random.set_state(state["numpy"])
+    torch.set_rng_state(state["torch_cpu"].cpu())
+    if state["torch_cuda"] is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all([s.cpu() for s in state["torch_cuda"]])
+    train_loader.generator.set_state(state["loader_gen"].cpu())
+
 # -------------------------
 # Transforms
 # -------------------------
@@ -365,7 +383,9 @@ def evaluate_model(clip_model, router, C1, C2, loader, name, device, hard_routin
     mse2 = mse2_sum / total_elements
     mse_avg = mse_avg_sum / total_elements
 
-    logging.info(f"Eval - {name} - C1 Acc: {acc1:.2f}%, C2 Acc: {acc2:.2f}%, Avg T_soft: {avg_t_soft:.3f} | C1 MSE: {mse1:.4f}, C2 MSE: {mse2:.4f}")
+    logging.info(f"Eval - {name} - Final Acc (Ensemble): {acc_avg:.2f}%, C1 Acc: {acc1:.2f}%, C2 Acc: {acc2:.2f}%, Avg T_soft: {avg_t_soft:.3f} | C1 MSE: {mse1:.4f}, C2 MSE: {mse2:.4f}")
+
+    #logging.info(f"Eval - {name} - C1 Acc: {acc1:.2f}%, C2 Acc: {acc2:.2f}%, Avg T_soft: {avg_t_soft:.3f} | C1 MSE: {mse1:.4f}, C2 MSE: {mse2:.4f}")
     return acc1, acc2, acc_avg, avg_t_soft, mse1, mse2, mse_avg
 
 def count_parameters(module: nn.Module, trainable_only: bool = False) -> int:
@@ -399,7 +419,7 @@ class CustomLRScheduler:
             group['lr'] = lr
         self.current_iter += 1
 
-def save_checkpoint(epoch, peft_model, router, c1, c2, optimizer, scheduler, filepath):
+def save_checkpoint(epoch, peft_model, router, c1, c2, optimizer, scheduler, filepath, scaler=None, train_loader=None):
     state = {
         'epoch': epoch,
         'peft_model_state_dict': get_peft_model_state_dict(peft_model),
@@ -407,23 +427,30 @@ def save_checkpoint(epoch, peft_model, router, c1, c2, optimizer, scheduler, fil
         'c1_state_dict': c1.state_dict(),
         'c2_state_dict': c2.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_current_iter': scheduler.current_iter
+        'scheduler_current_iter': scheduler.current_iter,
+        'scaler_state_dict': scaler.state_dict() if scaler is not None else None,
+        'rng_state': get_rng_state(train_loader) if train_loader is not None else None,
     }
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     torch.save(state, filepath)
     logging.info(f"Checkpoint saved to {filepath}")
 
+
 def load_checkpoint(filepath, peft_model, router, c1, c2, optimizer=None, scheduler=None, device='cpu'):
     if not filepath or (not os.path.exists(filepath)):
         logging.warning(f"Checkpoint file not found: {filepath}. Starting from scratch.")
-        return 0
-    checkpoint = torch.load(filepath, map_location=device)
-    
+        return 0, None, None
+
+    try:
+        checkpoint = torch.load(filepath, map_location=device, weights_only=False)
+    except TypeError:
+        checkpoint = torch.load(filepath, map_location=device)
+
     try:
         set_peft_model_state_dict(peft_model, checkpoint['peft_model_state_dict'])
     except Exception:
         peft_model.load_state_dict(checkpoint['peft_model_state_dict'], strict=False)
-        
+
     router.load_state_dict(checkpoint['router_state_dict'])
     c1.load_state_dict(checkpoint['c1_state_dict'])
     c2.load_state_dict(checkpoint['c2_state_dict'])
@@ -432,8 +459,9 @@ def load_checkpoint(filepath, peft_model, router, c1, c2, optimizer=None, schedu
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     if scheduler and 'scheduler_current_iter' in checkpoint:
         scheduler.current_iter = checkpoint['scheduler_current_iter']
+
     logging.info(f"Loaded checkpoint from {filepath}. Resuming from epoch {start_epoch}.")
-    return start_epoch
+    return start_epoch, checkpoint.get('scaler_state_dict'), checkpoint.get('rng_state')
 
 
 # -------------------------
@@ -444,10 +472,12 @@ def train_model(
     device, checkpoint_dir, save_every_n_epochs, test_loader_for_logging=None, start_epoch=0,
     csv_writer=None, csv_file_handle=None, loss_weight_c1=0.5, loss_weight_c2=0.5,
     consistency_loss_weight=0.1, use_cutmix=True, cutmix_prob=0.5, cutmix_alpha=1.0,
-    compute_reg_weight: float = 0.0, hard_routing_eval: bool = True, use_amp: bool = False, eval_every_n_epochs: int = 1
+    compute_reg_weight: float = 0.0, hard_routing_eval: bool = True, use_amp: bool = False, 
+    eval_every_n_epochs: int = 1, scaler_state=None
 ):
-    # Pass use_amp to scaler
     scaler = torch.amp.GradScaler(enabled=use_amp)
+    if scaler_state is not None:
+        scaler.load_state_dict(scaler_state)
 
     for epoch in range(start_epoch, num_epochs):
         clip_model.train(); router.train(); C1.train(); C2.train()
@@ -550,13 +580,15 @@ def train_model(
         if checkpoint_dir and save_every_n_epochs > 0 and ((epoch + 1) % save_every_n_epochs == 0):
             save_checkpoint(
                 epoch + 1, clip_model, router, C1, C2, optimizer, scheduler,
-                os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
+                os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth"),
+                scaler=scaler, train_loader=train_loader
             )
 
     if checkpoint_dir:
         save_checkpoint(
             num_epochs, clip_model, router, C1, C2, optimizer, scheduler,
-            os.path.join(checkpoint_dir, f"final_model_epoch_{num_epochs}.pth")
+            os.path.join(checkpoint_dir, f"final_model_epoch_{num_epochs}.pth"),
+            scaler=scaler, train_loader=train_loader
         )
         
         
@@ -782,10 +814,23 @@ def run_experiment(base_args, current_seed):
         iters_per_epoch=iters_per_epoch
     )
 
-    start_epoch = 0
+    start_epoch, scaler_state, rng_state = 0, None, None
     if args.checkpoint_path:
         logging.info("--- Resuming Training ---")
-        start_epoch = load_checkpoint(args.checkpoint_path, clip_peft, router, C1, C2, optimizer=optimizer, scheduler=scheduler, device=device)
+        start_epoch, scaler_state, rng_state = load_checkpoint(
+            args.checkpoint_path, clip_peft, router, C1, C2, 
+            optimizer=optimizer, scheduler=scheduler, device=device
+        )
+        if start_epoch > 0:
+            if rng_state is None:
+                logging.warning("Checkpoint has no RNG state: resumed run will not match an uninterrupted run.")
+            else:
+                logging.info(f"Replaying data pipeline for {start_epoch} finished epoch(s)...")
+                for _ in range(start_epoch):
+                    for _ in train_loader:      
+                        pass
+                set_rng_state(rng_state, train_loader)
+
 
     csv_path = os.path.join(args.checkpoint_dir, csv_filename)
     file_mode = "a" if start_epoch > 0 and os.path.exists(csv_path) else "w"
@@ -808,7 +853,8 @@ def run_experiment(base_args, current_seed):
             csv_file_handle=csv_file, loss_weight_c1=args.loss_weight_c1, loss_weight_c2=args.loss_weight_c2,
             consistency_loss_weight=args.consistency_loss_weight, use_cutmix=args.use_cutmix,
             cutmix_prob=args.cutmix_prob, cutmix_alpha=args.cutmix_alpha, compute_reg_weight=args.compute_reg_weight,
-            hard_routing_eval=args.hard_routing_eval, use_amp=args.use_amp, eval_every_n_epochs=args.eval_every_n_epochs
+            hard_routing_eval=args.hard_routing_eval, use_amp=args.use_amp, eval_every_n_epochs=args.eval_every_n_epochs,
+            scaler_state=scaler_state
         )
 
     # Optional Parameter Count Profile
@@ -902,6 +948,7 @@ def main():
         logging.info(f"=== STARTING RUN {i+1}/{args.num_runs} with Train Seed {base_seed} & Test Seed {base_seed + 1} ===")
         
         run_experiment(args, base_seed)
+        args.checkpoint_path = None
         
     logging.info("ALL SEEDS COMPLETED SUCCESSFULLY!")
     
