@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-# Robust loading logic used in UCMerced configurations
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import torch
@@ -47,7 +46,6 @@ def provide_determinism(seed: Optional[int] = 23):
     else:
         logging.info(f"Using provided seed for reproducibility: {seed}")
     
-    # 1. Enforce strict deterministic algorithms for CUDA
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     os.environ["PYTHONHASHSEED"] = str(seed)
     
@@ -61,7 +59,6 @@ def provide_determinism(seed: Optional[int] = 23):
     torch.backends.cudnn.deterministic = True
     
            
-    # Force deterministic PyTorch operations. Crash if a deterministic implementation is missing.
     torch.use_deterministic_algorithms(True, warn_only=False)
 
 def worker_seed_set(worker_id):
@@ -140,9 +137,9 @@ class CustomSubsetDataset(Dataset):
                     return img, label
                 except Exception as e:
                     last_err = e
-                    time.sleep(0.1) # Slight delay before retrying
+                    time.sleep(0.1) 
                     continue
-            # Return dummy instead of skipping to next idx to preserve batch determinism
+            
             logging.warning(f"Failed to load {path} after 10 attempts. Using dummy image. Error: {last_err}")
             img = Image.new("RGB", (336, 336), (128, 128, 128))
             if self.transform:
@@ -245,24 +242,16 @@ class RecursiveGlobalHead(nn.Module):
 
     def forward(self, cls_feat: torch.Tensor, t_soft: torch.Tensor, router: NeuralRouter, hard_mask: bool = False):
         h = cls_feat
-        # 1. MoR Routing Loop (Unchanged)
         for t in range(1, self.cfg.t_max + 1):
             m = router.step_mask(t_soft, t, hard=hard_mask).unsqueeze(-1)
             h_new = self.update_block(h)
             h = h + m * (h_new - h)
             
-        
-        # 2. Project visual features from 1024-dim to 768-dim CLIP space
         h_proj = self.visual_proj(h)
-        
-        # 3. L2 Normalize the visual features (Crucial for CLIP math)
         h_proj = h_proj / h_proj.norm(dim=-1, keepdim=True)
-        
-        # 4. L2 Normalize the semantic weights
         w = self.classifier.weight
         w = w / w.norm(dim=-1, keepdim=True)
         
-        # 5. Compute Cosine Similarity and scale by temperature (100.0 is standard CLIP temp)
         logits = 100.0 * F.linear(h_proj, w)
         
         return logits, h
@@ -291,7 +280,7 @@ class RecursiveSpatialHead(nn.Module):
         V = self.v_proj(patch_feat).reshape(B, N, self.num_heads, self.qk_dim).permute(0, 2, 1, 3)
 
         h = patch_feat.mean(dim=1) 
-        # 1. MoR Routing Loop (Unchanged)
+        
         for t in range(1, self.cfg.t_max + 1):
             m = router.step_mask(t_soft, t, hard=hard_mask).unsqueeze(-1)
             Q = self.q_proj(h).reshape(B, self.num_heads, 1, self.qk_dim)
@@ -303,18 +292,12 @@ class RecursiveSpatialHead(nn.Module):
             h_new = self.update_block(h + c)
             h = h + m * (h_new - h)
 
-        # ?? HERE IS WHERE visual_proj IS CALLED ??
-        # 2. Project visual features from 1024-dim to 768-dim CLIP space
+        
         h_proj = self.visual_proj(h)
-        
-        # 3. L2 Normalize the visual features (Crucial for CLIP math)
         h_proj = h_proj / h_proj.norm(dim=-1, keepdim=True)
-        
-        # 4. L2 Normalize the semantic weights
         w = self.classifier.weight
         w = w / w.norm(dim=-1, keepdim=True)
         
-        # 5. Compute Cosine Similarity and scale by temperature
         logits = 100.0 * F.linear(h_proj, w)
         
         return logits, h
@@ -360,7 +343,7 @@ def evaluate_model(clip_model, router, C1, C2, loader, name, device, hard_routin
             avg_correct += (avg_l.argmax(dim=1) == labels).sum().item()
             total += labels.size(0)
 
-            # MSE Calculation (Brier Score approach)
+            # MSE Calculation 
             num_classes = l1.size(1)
             labels_one_hot = F.one_hot(labels, num_classes=num_classes).float()
             
@@ -615,14 +598,12 @@ def get_semantic_weights(clip_model: CLIPModel, class_names: list, proj_dim: int
         text_features_c1 = clip_model.get_text_features(**inputs_c1).cpu()
         text_features_c2 = clip_model.get_text_features(**inputs_c2).cpu()
 
-    # Verify dimensions
     actual_dim = text_features_c1.shape[-1]
     if actual_dim != proj_dim:
         raise ValueError(
             f"CLIP text projection output dim {actual_dim} != expected proj_dim {proj_dim}."
         )
 
-    # Normalize both sets of features
     text_features_c1 = text_features_c1 / text_features_c1.norm(dim=-1, keepdim=True)
     text_features_c2 = text_features_c2 / text_features_c2.norm(dim=-1, keepdim=True)
 
@@ -635,24 +616,22 @@ def run_experiment(base_args, current_seed):
     import gc
     import copy
     
-    # Create a fresh copy of args for this specific seed run
     args = copy.deepcopy(base_args)
     args.seed = current_seed
 
-    # --- Apply Preset Overrides (Dataset Paths & Quirks) ---
     if args.preset == 'nwpu':
         args.data_root = args.data_root or "./data/NWPU-RESISC45"
-        args.checkpoint_dir = f"./checkpoints_nwpu_mor_highacc_seed_{current_seed}"
+        args.checkpoint_dir = f"./checkpoints_nwpu_mor_seed_{current_seed}"
         csv_filename = f"training_log_nwpu_mor_seed_{current_seed}.csv"
 
     elif args.preset == 'aid':
         args.data_root = args.data_root or "./data/AID"
-        args.checkpoint_dir = f"./checkpoints_aid_mor_highacc_seed_{current_seed}"
+        args.checkpoint_dir = f"./checkpoints_aid_mor_seed_{current_seed}"
         csv_filename = f"training_log_aid_mor_seed_{current_seed}.csv"
 
     elif args.preset == 'ucmerced':
         args.data_root = args.data_root or "./data/UCMerced_LandUse/Images"
-        args.checkpoint_dir = f"./checkpoints_ucmerced_mor_highacc_seed_{current_seed}"
+        args.checkpoint_dir = f"./checkpoints_ucmerced_mor_seed_{current_seed}"
         args.robust_retry = True
         csv_filename = f"training_log_ucmerced_mor_seed_{current_seed}.csv"
     else:
@@ -906,7 +885,7 @@ def main():
     parser.add_argument("--eval_every_n_epochs", type=int, default=80, 
                         help="Evaluate every k epochs and at the last epoch.")
     
-    # SyDHA / MoR Args
+   
     parser.add_argument("--consistency_loss_weight", type=float, default=0.1)
     parser.add_argument("--loss_weight_c1", type=float, default=0.5)
     parser.add_argument("--loss_weight_c2", type=float, default=0.5)
