@@ -136,19 +136,17 @@ python main.py --preset aid --eval --test_size 0.5 --checkpoint_path ./models/mi
 
 ## 📊 Benchmark Results
 
-Classification accuracies (%) compared across standard train-test ratios ($T_r$) over 3 independent runs:
+Classification accuracies (%) over 3 independent runs. For extensive comparisons with competing state-of-the-art methods, please refer to our paper.
 
-| Dataset | Training Ratio ($T_r$) | MiRAGE (Ours) | Prior Best | Best Competing Method |
-| :--- | :---: | :---: | :---: | :--- |
-| **UC Merced** ($N_c = 21$) | 0.8 | 99.60 ± 0.22 | **99.86 ± 0.10** | NAFF-HNN |
-| | 0.5 | **99.49 ± 0.12** | 99.33 ± 0.32 | HFFT-PD-PVT |
-| **AID** ($N_c = 30$) | 0.5 | **98.89 ± 0.02** | 98.51 ± 0.12 | LoRA-CLIP |
-| | 0.2 | **98.61 ± 0.07** | 98.14 ± 0.09 | LoRA-CLIP |
-| **NWPU-RESISC45** ($N_c = 45$) | 0.8 | **97.75 ± 0.11** | 97.51 ± 0.15 | SceneFormer |
-| | 0.2 | **96.67 ± 0.10** | 96.27 ± 0.25 | Bai et al. (2026) |
-| | 0.1 | **96.04 ± 0.05** | 95.18 ± 0.15 | LoRA-CLIP |
-
----
+| Dataset | <nobr>Train Ratio ($T_r$)</nobr> | Accuracy (%) |
+| :--- | :---: | :---: |
+| <nobr>**UC Merced** ($N_c = 21$)</nobr> | 0.8 | 99.60 ± 0.22 |
+| | 0.5 | 99.49 ± 0.12 |
+| <nobr>**AID** ($N_c = 30$)</nobr> | 0.5 | 98.89 ± 0.02 |
+| | 0.2 | 98.61 ± 0.07 |
+| <nobr>**NWPU-RESISC45** ($N_c = 45$)</nobr> | 0.8 | 97.75 ± 0.11 |
+| | 0.2 | 96.67 ± 0.10 |
+| | 0.1 | 96.04 ± 0.05 |
 
 ## 📜 Citation
 
