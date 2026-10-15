@@ -89,31 +89,31 @@ Train MiRAGE using the built-in dataset presets. Each command automatically runs
 
 ### 1. UC Merced (UCM)
 ```bash
-# 80% Train, 20% Test ($T_r$ = 0.8)
+# 80% Train, 20% Test (T_r = 0.8)
 python main.py --preset ucmerced --train_ratio 0.8 --batch_size 16 --num_runs 3 --seed 0
 
-# 50% Train, 50% Test ($T_r$ = 0.5)
+# 50% Train, 50% Test (T_r = 0.5)
 python main.py --preset ucmerced --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 0
 ```
 
 ### 2. Aerial Image Dataset (AID)
 ```bash
-# 50% Train, 50% Test ($T_r$ = 0.5)
+# 50% Train, 50% Test (T_r = 0.5)
 python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 3 --seed 42
 
-# 20% Train, 80% Test ($T_r$ = 0.2)
+# 20% Train, 80% Test (T_r = 0.2)
 python main.py --preset aid --train_ratio 0.2 --batch_size 16 --num_runs 3 --seed 0
 ```
 
 ### 3. NWPU-RESISC45 (NWPU)
 ```bash
-# 80% Train, 20% Test ($T_r$ = 0.8)
+# 80% Train, 20% Test (T_r = 0.8)
 python main.py --preset nwpu --train_ratio 0.8 --batch_size 16 --num_runs 3 --seed 0
 
-# 20% Train, 80% Test ($T_r$ = 0.2)
+# 20% Train, 80% Test (T_r = 0.2)
 python main.py --preset nwpu --train_ratio 0.2 --batch_size 16 --num_runs 3 --seed 0
 
-# 10% Train, 90% Test ($T_r$ = 0.1)
+# 10% Train, 90% Test (T_r = 0.1)
 python main.py --preset nwpu --train_ratio 0.1 --batch_size 16 --num_runs 3 --seed 0
 ```
 
