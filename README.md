@@ -42,8 +42,8 @@ pip install -r requirements.txt
 If you are reproducing the AID $T_r = 0.2$ experiments under its original setup (**Python 3.10**):
 
 ```bash
-conda create -n mor_sydha python=3.10 -y
-conda activate mor_sydha
+conda create -n mirage_aid python=3.10 -y
+conda activate mirage_aid
 # Uncomment the alternative block in requirements.txt, then run:
 pip install -r requirements.txt
 ```
@@ -115,7 +115,7 @@ python main.py --preset nwpu --train_ratio 0.1 --batch_size 16 --num_runs 3 --se
 ## 🔍 Pretrained Checkpoints & Evaluation
 
 Pretrained weights are available for download:
-- 🔗 **[Google Drive - Download Pretrained Models](https://drive.google.com/your-drive-link-here)**
+- 🔗 **[Google Drive - Download Pretrained Models](https://drive.google.com/drive/folders/1f_fA9riSvVuOnXRRX6MvhbaYvAgo4BmB?usp=sharing)**
 
 Place the downloaded `.pth` checkpoint files into the `models/` directory.
 
