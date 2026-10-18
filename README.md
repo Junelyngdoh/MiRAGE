@@ -116,6 +116,17 @@ python main.py --preset nwpu --train_ratio 0.2 --batch_size 16 --num_runs 3 --se
 # 10% Train, 90% Test (T_r = 0.1)
 python main.py --preset nwpu --train_ratio 0.1 --batch_size 16 --num_runs 3 --seed 0
 ```
+---
+
+## 🔄 Resuming Training
+
+To resume an interrupted run, use the same training command with `--checkpoint_path` pointing to a saved checkpoint:
+
+```bash
+python main.py --preset aid --train_ratio 0.5 --batch_size 16 --num_runs 1 --seed 0 --checkpoint_path <path_to_saved_checkpoint>
+```
+
+Here, `<path_to_saved_checkpoint>` is the path to the `.pth` file saved during training. Training continues from the epoch stored in that checkpoint. Use `--save_every_n_epochs` during training to save intermediate checkpoints.
 
 ---
 
